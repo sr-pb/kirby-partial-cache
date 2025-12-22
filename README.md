@@ -7,7 +7,6 @@ Heavily inspired by [Kirby Lapse](https://github.com/bnomei/kirby3-lapse) and [K
 
 Download and copy this repository to /site/plugins/partial-cache.
 
-
 ## Quick example 
 
 ```php
@@ -149,8 +148,8 @@ echo $data;
 // Same as $cache->set()
 // https://getkirby.com/docs/reference/objects/cache/cache/set
 
-$expires = partialCache('expires/' . $page->id())
-    ->expires(1)
+$expires = partialCache('cache-for-five-minutes')
+    ->expires(5)
     ->snippet('some/snippet');
 
 echo $expires;
@@ -186,7 +185,7 @@ echo $event;
 // - a page with blueprint "post" has been edited
 // - the template "blog.json.php" has been edited
 
-$posts = partialCache('json/posts')
+$posts = partialCache('my-api/posts')
     ->watch([
         'pages' => [
             'blueprint' => [
