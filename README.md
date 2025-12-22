@@ -1,6 +1,12 @@
 # kirby-partial-cache
 
-A plugin to partially cache any data.
+A plugin to partially cache any data.<br>
+Heavily inspired by [Kirby Lapse](https://github.com/bnomei/kirby3-lapse) and [Kirby Boost](https://github.com/bnomei/kirby3-boost).
+
+## Installation
+
+Download and copy this repository to /site/plugins/partial-cache.
+
 
 ## Quick example 
 
