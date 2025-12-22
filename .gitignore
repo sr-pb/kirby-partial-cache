@@ -1,0 +1,17 @@
+# System files
+# ------------
+Icon
+.DS_Store
+
+
+# Editors
+# (sensitive workspace files)
+# ---------------------------
+*.sublime-workspace
+.vscode
+.idea
+
+
+# Node Modules, Webpack, Parcel
+# ---------------
+node_modules

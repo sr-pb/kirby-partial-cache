@@ -1,0 +1,17 @@
+{
+    "name": "sr/partial-cache",
+    "description": "Partial Cache",
+    "version": "1.0.0",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Sr\\": "classes/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Simon Rüegg",
+            "email": "simon.rueegg@gmail.com"
+        }
+    ]
+}
