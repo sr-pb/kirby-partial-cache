@@ -1,6 +1,6 @@
 {
-    "name": "sr/partial-cache",
-    "description": "Partial Cache",
+    "name": "sr/kirby-partial-cache",
+    "description": "Partial cache plugin for Kirby CMS",
     "version": "1.0.0",
     "license": "MIT",
     "autoload": {
