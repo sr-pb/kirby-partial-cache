@@ -76,7 +76,7 @@ $data = partialCache('a-unique-cache-key')
         // … options
     ])
     ->data(function () {
-        $data = 'Something to be cached.';
+        $data = 'Something that should be cached.';
 
         return $data;
     });
