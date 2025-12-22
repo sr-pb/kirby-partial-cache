@@ -120,6 +120,5 @@ final class Index
 
         $index = kirby()->cache('sr.partial-cache')->get('index', []);
         $index['site.modified'] = site()->modified();
-
     }
 }

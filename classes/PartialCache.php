@@ -67,8 +67,6 @@ final class PartialCache
             * https://github.com/bnomei/kirby3-lapse/blob/master/classes/Lapse.php
             */
 
-            // todo: .files mit 'cache', 'data' o.a. ersetzen
-
             $this->cacheItem = kirby()->cache('sr.partial-cache.files')->get($this->key);
 
             $this->lastModified = $this->cache->modified($this->key);
@@ -154,7 +152,6 @@ final class PartialCache
         try {
             $success = $this->cache->flush();
         } catch (Exception $e) {
-
         }
         return $success;
     }
@@ -202,7 +199,7 @@ final class PartialCache
     }
 
     /**
-     * Checks page timestamps
+     * Check page timestamps
      * - page id
      * - page uuid
      * - page template
@@ -225,7 +222,7 @@ final class PartialCache
     }
 
     /**
-     * Checks collections timestamps
+     * Check collections timestamps
      */
     private function checkCollections($option): void
     {
@@ -233,7 +230,8 @@ final class PartialCache
             foreach ($option as $collection) {
                 $index = $this->index['collections'][$collection] ?? null;
 
-                if (! $this->needsUpdate
+                if (
+                    ! $this->needsUpdate
                     && $index
                     && $this->lastModified < $index
                 ) {
@@ -243,20 +241,9 @@ final class PartialCache
         }
     }
 
-    /**
-     * Checks Site modified timestamp
-     */
-    private function checkSiteModifiedOld(): void
-    {
-        $siteModified = site()->modified();
-
-        if ($this->lastModified < $siteModified) {
-            $this->needsUpdate = true;
-        }
-    }
 
     /**
-     * Checks Site modified timestamp
+     * Check site modified timestamp
      */
     private function checkSiteModified(): void
     {
@@ -269,7 +256,7 @@ final class PartialCache
     }
 
     /**
-     * Checks site.*:after timestamps
+     * Check site.*:after timestamps
      */
     private function checkSiteUpdate($option): void
     {
@@ -283,8 +270,7 @@ final class PartialCache
     }
 
     /**
-     * Checks file timestamps
-     * - templates
+     * Check file timestamps
      * - snippets
      */
     private function checkSnippets(array $items): void
@@ -354,15 +340,17 @@ final class PartialCache
 
     private $checkingOrder = [
         'pages',
-        'collections',
         'site.update',
+        'site.modified',
+        'collections',
         'templates',
         'snippets',
-        'site.modified'
     ];
 
     /**
      * Watch timestamps
+     *
+     * @param array $watchOptions   Array with options.
      */
     public function watch(array $watchOptions = [])
     {
@@ -372,7 +360,7 @@ final class PartialCache
             Index::createIndex();
         }
 
-        if (! empty($watchOptions) && is_array($watchOptions) ) {
+        if (! empty($watchOptions) && is_array($watchOptions)) {
 
             /**
              * Sort watchOptions by least consuming

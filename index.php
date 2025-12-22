@@ -22,7 +22,6 @@ if (! function_exists('partialCache')) {
 Kirby::plugin('sr/partial-cache', [
     'options' => [
         'cache' => true,
-        // todo: .files mit 'cache', 'data' o.a. ersetzen
         'cache.files' => true,
         'collections' => false,
     ],
