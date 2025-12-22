@@ -242,6 +242,7 @@ sections:
 ```
 
 ## Credits
+
 - [Kirby Lapse](https://github.com/bnomei/kirby3-lapse)
 - [Kirby Boost](https://github.com/bnomei/kirby3-boost).
 
