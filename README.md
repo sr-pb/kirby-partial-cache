@@ -226,19 +226,16 @@ Example configuration in `site.yml`:
 ```yaml
 # site.yml
 
-sections:
-  maintenance:
-    type: fields
-    fields:
-      flush_cache:
-        type: cachebutton
-        label: Flush cache
-        text: Flush
-        cache: sr.partial-cache
+fields:
+  flush_cache:
+    type: cachebutton
+    label: Flush cache
+    text: Flush
+    cache: sr.partial-cache
 
-      index_site:
-        type: indexbutton
-        label: Build site index
+  index_site:
+    type: indexbutton
+    label: Build site index
 ```
 
 ## Credits
