@@ -202,20 +202,26 @@ final class PartialCache
      * Check page timestamps
      * - page id
      * - page uuid
-     * - page template
+     * - page blueprint
      */
     private function checkPages($option): void
     {
-        if (is_array($option) && ! $this->needsUpdate) {
-            foreach ($option as $key => $value) {
-                foreach ($value as $id) {
-                    $id = str_replace('page://', '', $id);
+        if ($this->needsUpdate) {
+            return;
+        }
 
-                    $page = $this->index['pages'][$key][$id] ?? null;
+        if (!is_array($option)) {
+            return;
+        }
 
-                    if ($page && $this->lastModified < $page) {
-                        $this->needsUpdate = true;
-                    }
+        foreach ($option as $key => $value) {
+            foreach ($value as $id) {
+                $id = str_replace('page://', '', $id);
+
+                $expires = $this->index['pages'][$key][$id] ?? null;
+
+                if ($expires && $this->lastModified < $expires) {
+                    $this->needsUpdate = true;
                 }
             }
         }
@@ -226,17 +232,19 @@ final class PartialCache
      */
     private function checkCollections($option): void
     {
-        if (is_array($option)) {
-            foreach ($option as $collection) {
-                $index = $this->index['collections'][$collection] ?? null;
+        if (!is_array($option)) {
+            return;
+        }
 
-                if (
-                    ! $this->needsUpdate
-                    && $index
-                    && $this->lastModified < $index
-                ) {
-                    $this->needsUpdate = true;
-                }
+        foreach ($option as $collection) {
+            $index = $this->index['collections'][$collection] ?? null;
+
+            if (
+                ! $this->needsUpdate
+                && $index
+                && $this->lastModified < $index
+            ) {
+                $this->needsUpdate = true;
             }
         }
     }
