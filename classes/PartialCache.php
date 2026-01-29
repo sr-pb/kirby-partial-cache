@@ -130,15 +130,136 @@ final class PartialCache
     private $expires;
 
     /**
-     * @param $expires
+     * @param int $minutes
      *
      * @return Object
      */
-    public function expires(int $expires = 0)
+    public function expires(int $minutes = 0)
     {
-        $this->expires = intval($expires);
+        $this->expires = intval($minutes);
+
         return $this;
     }
+
+    /**
+     * Invalidates cache daily at a given time
+     *
+     * @param string|array<string> $time    e.g. '20:00' or ['17:15', '8pm']
+     * @param \DateTimeZone|null $timezone
+     *
+     * @return Object
+     */
+    public function dailyAt(
+        string|array $time,
+        \DateTimeZone|null $timezone = null
+    )
+    {
+        if ($this->cacheItem === null) {
+            return $this;
+        }
+
+        $now = new \DateTimeImmutable('now', $timezone);
+
+        if (!is_array($time)) {
+            $time = array($time);
+        }
+
+        // Build today's schedule as DateTimeImmutable instances
+        $todaySlots = [];
+
+        foreach ($time as $t) {
+            // parse time (supports '8pm', '20:00', etc.)
+            try {
+                $runTime = new \DateTimeImmutable($t, $timezone);
+            } catch (\Exception $e) {
+                throw new \InvalidArgumentException("Invalid time string: {$t}", 0, $e);
+            }
+
+            $slot = $now->setTime(
+                (int) $runTime->format('H'),
+                (int) $runTime->format('i'),
+                0
+            );
+
+            $todaySlots[] = $slot;
+        }
+
+        // Sort ascending
+        usort($todaySlots, fn($a, $b) => $a <=> $b);
+
+        // Find the most recent slot that is <= now (the "latest due time today")
+        $latestPassed = null;
+
+        foreach ($todaySlots as $slot) {
+            if ($slot <= $now) {
+                $latestPassed = $slot;
+            } else {
+                break;
+            }
+        }
+
+        // Not time yet for any slot today
+        if ($latestPassed === null) {
+            return $this;
+        }
+
+        // Already ran since the latest passed slot
+        if ($this->lastModified >= $latestPassed->getTimestamp()) {
+            return $this;
+        }
+
+        $this->needsUpdate = true;
+
+        return $this;
+    }
+
+    /**
+     * Invalidates cache daily at a given time
+     *
+     * @param string $time
+     * @param \DateTimeZone|null $timezone
+     *
+     * @return Object
+     */
+    public function dailyAt2(
+        string $time,
+        \DateTimeZone|null $timezone = null
+    )
+    {
+        if ($this->cacheItem === null) {
+            return $this;
+        }
+
+        $now = new \DateTimeImmutable('now', $timezone);
+
+        try {
+            $runTime = new \DateTimeImmutable($time, $timezone);
+        } catch (\Exception $e) {
+            throw new \InvalidArgumentException("Invalid time string: {$time}", 0, $e);
+        }
+
+        // Today's scheduled time (today at HH:MM)
+        $todayAt = $now->setTime(
+            (int)$runTime->format('H'),
+            (int)$runTime->format('i'),
+            0
+        );
+
+        if ($now < $todayAt) {
+            return $this;
+        }
+
+        // Already ran since today's scheduled time (this is the key check)
+        if ($this->lastModified >= $todayAt->getTimestamp()) {
+            return $this;
+        }
+
+        $this->needsUpdate = true;
+
+        return $this;
+    }
+
+
 
     /**
      * Removes all cache files created by this plugin
@@ -149,10 +270,12 @@ final class PartialCache
     public function flush(): bool
     {
         $success = false;
+
         try {
             $success = $this->cache->flush();
         } catch (Exception $e) {
         }
+
         return $success;
     }
 
@@ -192,6 +315,7 @@ final class PartialCache
             $this->cacheItem = $s;
 
             $this->cache->set($this->key, $this->cacheItem, $this->expires);
+
             return $this->cacheItem;
         }
 
@@ -320,6 +444,11 @@ final class PartialCache
         }
     }
 
+    private function checkTimestamps()
+    {
+
+    }
+
     private function getType($type, $option)
     {
         $map = [
@@ -341,12 +470,16 @@ final class PartialCache
             'site.modified' => function () {
                 return $this->checkSiteModified();
             },
+            'timestamps' => function () {
+                return $this->checkTimestamps();
+            }
         ];
 
         return $map[$type]($option);
     }
 
     private $checkingOrder = [
+        'timestamps',
         'pages',
         'site.update',
         'site.modified',
