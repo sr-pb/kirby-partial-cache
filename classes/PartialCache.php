@@ -150,8 +150,7 @@ final class PartialCache
     public function dailyAt(
         string|array $time,
         \DateTimeZone|null $timezone = null
-    ): self
-    {
+    ): self {
         if ($this->cacheItem === null) {
             $this->needsUpdate = true;
             return $this;
@@ -197,8 +196,8 @@ final class PartialCache
      */
     public function weeklyAt(
         array $schedule,
-        \DateTimeZone|null $timezone = null): self
-    {
+        \DateTimeZone|null $timezone = null
+    ): self {
         if ($this->cacheItem === null) {
             $this->needsUpdate = true;
             return $this;
@@ -255,8 +254,8 @@ final class PartialCache
     private function getTimeSlots(
         array $time,
         \DateTimeImmutable $now,
-        \DateTimeZone|null $timezone = null): array
-    {
+        \DateTimeZone|null $timezone = null
+    ): array {
         // Build today's schedule as DateTimeImmutable instances
         $slots = [];
 
@@ -294,17 +293,27 @@ final class PartialCache
     private function getSchedule(
         array $schedule,
         \DateTimeImmutable $now,
-        \DateTimeZone|null $timezone = null): array
-    {
+        \DateTimeZone|null $timezone = null
+    ): array {
         // Map weekday strings to ISO weekday numbers (1..7)
         $map = [
-            'mon' => 1, 'monday' => 1,
-            'tue' => 2, 'tues' => 2, 'tuesday' => 2,
-            'wed' => 3, 'wednesday' => 3,
-            'thu' => 4, 'thur' => 4, 'thurs' => 4, 'thursday' => 4,
-            'fri' => 5, 'friday' => 5,
-            'sat' => 6, 'saturday' => 6,
-            'sun' => 7, 'sunday' => 7,
+            'mon' => 1,
+            'monday' => 1,
+            'tue' => 2,
+            'tues' => 2,
+            'tuesday' => 2,
+            'wed' => 3,
+            'wednesday' => 3,
+            'thu' => 4,
+            'thur' => 4,
+            'thurs' => 4,
+            'thursday' => 4,
+            'fri' => 5,
+            'friday' => 5,
+            'sat' => 6,
+            'saturday' => 6,
+            'sun' => 7,
+            'sunday' => 7,
         ];
 
         // Start of "this week" in local time (Monday 00:00, ISO week)
