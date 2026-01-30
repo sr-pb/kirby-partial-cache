@@ -1,10 +1,20 @@
 # kirby-partial-cache
 
-A plugin to partially cache any data.
+A plugin to partially cache snippets or arbitrary data with lazy, timestamp-based invalidation.
 
 ## Installation
 
-Download and copy this repository to /site/plugins/partial-cache.
+Download and copy this repository to `/site/plugins/partial-cache`.
+
+The plugin is enabled per default. To deactivate it, add the following to your `config.php`:
+
+```php
+return [
+    'sr.partial-cache' => [
+        'enabled' => false,
+    ]
+]
+```
 
 ## Quick example 
 
@@ -32,7 +42,7 @@ $data = partialCache('sidebar')
 
 ## Cache key
 
-Use a unique cache key. Keys can be organized in a folder-like structure, which makes per-page caching easy. On multilingual sites, the language code is automatically prepended.
+Cache keys must be unique. Keys can be organized in a folder-like structure, which makes per-page caching easy. On multilingual sites, the language code is automatically prepended.
 
 ```php
 <?php
@@ -83,11 +93,17 @@ $data = partialCache('a-unique-cache-key')
 
 ## Watch options
 
-You can invalidate the cache based on timestamps, for example:
+>**Note:** Invalidation checks are evaluated lazily when the cache is accessed – no cron jobs are used.
+
+You can invalidate the cache based on time schedules and change timestamps, for example:
 - cache for a given number of minutes (same as `$cache->set()`)
+- invalidate daily at specific times
+- invalidate weekly at specific days
 - when pages with specific blueprints or IDs/UUIDs are edited
 - when the site is updated or modified
 - when templates or snippets change
+
+All invalidation rules are combined with **OR** logic – if any rule requires invalidation, the cache is refreshed.
 
 ```php
 <?php
@@ -97,13 +113,23 @@ $data = partialCache('a-unique-cache-key')
     // Writes an item to the cache for a given number of minutes
     ->expires(1)
 
-    // watch for timestamps
+    // Invalidate daily at specific times (DateTime-compatible strings)
+    ->dailyAt('12:00') // or ['1pm', '20:00']
+
+    // Invalidate weekly at specific weekdays
+    ->weeklyAt([
+        'Monday' => '12:00',   // full name
+        'Tue'    => '3pm',     // short name
+        5        => '20:00'    // ISO weekday (1=Mon ... 7=Sun)
+    ])
+
+    // Watch for timestamp-based changes
     ->watch([
 
         // If anything has been edited (cached version of $site->modified())
         'site.modified' => true,
 
-        // If the site has been updated
+        // If the site has been updated (site.*:after hooks)
         'site.update' => true,
 
         // Watch pages
@@ -111,8 +137,8 @@ $data = partialCache('a-unique-cache-key')
 
             // Watch by IDs or UUIDs
             'id' => [
-                $page->uuid()->id(),
-                'some/page/id',
+                $page->uuid()->id(),    // UUID
+                'some/page/id',        // page ID
             ],
 
             // Watch by blueprint
@@ -155,12 +181,14 @@ echo $expires;
 
 
 // Cache a snippet. Invalidates if:
+// - invalidated daily at 00:10
 // - a page with the given ID has been edited
 // - a page with blueprint "home" has been edited
 // - a page with blueprint "event" has been edited
 // - the snippet "event-detail.php" has been edited
 
 $event = partialCache('events/' . $event->id())
+    ->dailyAt('00:10')
     ->watch([
         'pages' => [
             'id' => [
@@ -181,10 +209,14 @@ echo $event;
 
 
 // Cache data. Invalidates if:
+// - invalidated weekly on Saturday at 20:00
 // - a page with blueprint "post" has been edited
 // - the template "blog.json.php" has been edited
 
 $posts = partialCache('my-api/posts')
+    ->weeklyAt([
+        'Saturday' => '20:00'
+    ])
     ->watch([
         'pages' => [
             'blueprint' => [
@@ -220,6 +252,8 @@ The plugin provides two Panel buttons for maintenance tasks:
 
 - **Flush cache** – clears the partial cache  
 - **Build site index** – rebuilds the site index  
+
+These buttons are useful if you want to manually flush the cache or rebuild the site index without touching the filesystem.
 
 Example configuration in `site.yml`:
 

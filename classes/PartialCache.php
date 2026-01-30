@@ -74,7 +74,7 @@ final class PartialCache
         $this->lastModified = (int)($this->cache->modified($this->key) ?? 0);
         $this->needsUpdate = false;
 
-        if (option('sr.partial-cache.cache') === false) {
+        if (option('sr.partial-cache.enabled') === false) {
             $this->needsUpdate = true;
         }
     }
