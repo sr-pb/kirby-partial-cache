@@ -33,12 +33,12 @@ final class PartialCache
      *
      * @var bool
      */
-    private $needsUpdate;
+    private bool $needsUpdate = false;
 
     /**
      * Timestamp of cache item
      */
-    private $lastModified;
+    private int $lastModified = 0;
 
     /**
      * Index with timestamps
@@ -47,33 +47,34 @@ final class PartialCache
 
     public function __construct(string $key)
     {
-        $this->cache = kirby()->cache('sr.partial-cache.files');
-
-        if ($key) {
-
-            $prefix = '';
-
-            if (kirby()->multilang()) {
-                $prefix = kirby()->language()->code() . '/';
-            }
-
-            $this->key = $prefix . $key;
-
-            $this->expires = 0;
-
-            /*
-            * Evtl mit options?
-            * expires, off, etc.
-            * https://github.com/bnomei/kirby3-lapse/blob/master/classes/Lapse.php
-            */
-
-            $this->cacheItem = kirby()->cache('sr.partial-cache.files')->get($this->key);
-
-            $this->lastModified = $this->cache->modified($this->key);
-            $this->needsUpdate = false;
+        if ($key === '') {
+            throw new \InvalidArgumentException('Cache key must not be empty');
         }
 
-        if (option('sr.partial-cache.cache') == false) {
+        $this->cache = kirby()->cache('sr.partial-cache.files');
+
+        $prefix = '';
+
+        if (kirby()->multilang()) {
+            $prefix = kirby()->language()->code() . '/';
+        }
+
+        $this->key = $prefix . $key;
+
+        $this->expires = 0;
+
+        /*
+        * Evtl mit options?
+        * expires, off, etc.
+        * https://github.com/bnomei/kirby3-lapse/blob/master/classes/Lapse.php
+        */
+
+        $this->cacheItem = $this->cache->get($this->key);
+
+        $this->lastModified = (int)($this->cache->modified($this->key) ?? 0);
+        $this->needsUpdate = false;
+
+        if (option('sr.partial-cache.cache') === false) {
             $this->needsUpdate = true;
         }
     }
@@ -98,9 +99,9 @@ final class PartialCache
      *
      * @return mixed
      */
-    public function serialize($value)
+    private function serialize($value)
     {
-        if (! $value) {
+        if ($value === null) {
             return null;
         }
 
@@ -127,76 +128,45 @@ final class PartialCache
      *
      * @var int
      */
-    private $expires;
+    private int $expires = 0;
 
     /**
      * @param int $minutes
-     *
-     * @return Object
      */
-    public function expires(int $minutes = 0)
+    public function expires(int $minutes = 0): self
     {
         $this->expires = intval($minutes);
 
         return $this;
     }
 
+
     /**
      * Invalidates cache daily at a given time
      *
      * @param string|array<string> $time    e.g. '20:00' or ['17:15', '8pm']
      * @param \DateTimeZone|null $timezone
-     *
-     * @return Object
      */
     public function dailyAt(
         string|array $time,
         \DateTimeZone|null $timezone = null
-    )
+    ): self
     {
         if ($this->cacheItem === null) {
+            $this->needsUpdate = true;
             return $this;
         }
 
         $now = new \DateTimeImmutable('now', $timezone);
 
         if (!is_array($time)) {
-            $time = array($time);
+            $time = [$time];
         }
 
-        // Build today's schedule as DateTimeImmutable instances
-        $todaySlots = [];
-
-        foreach ($time as $t) {
-            // parse time (supports '8pm', '20:00', etc.)
-            try {
-                $runTime = new \DateTimeImmutable($t, $timezone);
-            } catch (\Exception $e) {
-                throw new \InvalidArgumentException("Invalid time string: {$t}", 0, $e);
-            }
-
-            $slot = $now->setTime(
-                (int) $runTime->format('H'),
-                (int) $runTime->format('i'),
-                0
-            );
-
-            $todaySlots[] = $slot;
-        }
-
-        // Sort ascending
-        usort($todaySlots, fn($a, $b) => $a <=> $b);
+        $slots = $this->getTimeSlots($time, $now, $timezone);
 
         // Find the most recent slot that is <= now (the "latest due time today")
-        $latestPassed = null;
-
-        foreach ($todaySlots as $slot) {
-            if ($slot <= $now) {
-                $latestPassed = $slot;
-            } else {
-                break;
-            }
-        }
+        $latestPassed = $this->latestPassed($slots, $now);
 
         // Not time yet for any slot today
         if ($latestPassed === null) {
@@ -213,44 +183,41 @@ final class PartialCache
         return $this;
     }
 
+
     /**
-     * Invalidates cache daily at a given time
-     *
-     * @param string $time
+     * @param array<string|int, string> $schedule
+     * ```
+     * [
+     *     'Monday' => '10:15',
+     *     'sun'.   => '8pm',
+     *     3        => '14:00', // ISO weekday (1=Mon ... 7=Sun)
+     * ]
+     *  ```
      * @param \DateTimeZone|null $timezone
-     *
-     * @return Object
      */
-    public function dailyAt2(
-        string $time,
-        \DateTimeZone|null $timezone = null
-    )
+    public function weeklyAt(
+        array $schedule,
+        \DateTimeZone|null $timezone = null): self
     {
         if ($this->cacheItem === null) {
+            $this->needsUpdate = true;
             return $this;
         }
 
         $now = new \DateTimeImmutable('now', $timezone);
 
-        try {
-            $runTime = new \DateTimeImmutable($time, $timezone);
-        } catch (\Exception $e) {
-            throw new \InvalidArgumentException("Invalid time string: {$time}", 0, $e);
-        }
+        $slots = $this->getSchedule($schedule, $now, $timezone);
 
-        // Today's scheduled time (today at HH:MM)
-        $todayAt = $now->setTime(
-            (int)$runTime->format('H'),
-            (int)$runTime->format('i'),
-            0
-        );
+        // Find latest slot <= now
+        $latestPassed = $this->latestPassed($slots, $now);
 
-        if ($now < $todayAt) {
+        // Not time yet for any slot this week
+        if ($latestPassed === null) {
             return $this;
         }
 
-        // Already ran since today's scheduled time (this is the key check)
-        if ($this->lastModified >= $todayAt->getTimestamp()) {
+        // Already ran since the latest passed slot
+        if ($this->lastModified >= $latestPassed->getTimestamp()) {
             return $this;
         }
 
@@ -259,7 +226,154 @@ final class PartialCache
         return $this;
     }
 
+    /**
+     * Find latest slot <= now
+     *
+     * @param array<int,\DateTimeImmutable> $slots
+     */
+    private function latestPassed(array $slots, \DateTimeImmutable $now): ?\DateTimeImmutable
+    {
+        // Find latest slot <= now
+        $latestPassed = null;
 
+        foreach ($slots as $slot) {
+            if ($slot <= $now) {
+                $latestPassed = $slot;
+            } else {
+                break;
+            }
+        }
+
+        return $latestPassed;
+    }
+
+
+    /**
+     * Get time slots
+     * @return array<int,\DateTimeImmutable>
+     */
+    private function getTimeSlots(
+        array $time,
+        \DateTimeImmutable $now,
+        \DateTimeZone|null $timezone = null): array
+    {
+        // Build today's schedule as DateTimeImmutable instances
+        $slots = [];
+
+        foreach ($time as $t) {
+            if (!is_string($t) || trim($t) === '') {
+                throw new \InvalidArgumentException("Invalid time string: " . var_export($t, true));
+            }
+
+            try {
+                // parse time (supports '8pm', '20:00', etc.)
+                $runTime = new \DateTimeImmutable($t, $timezone);
+            } catch (\Exception $e) {
+                throw new \InvalidArgumentException("Invalid time string: {$t}", 0, $e);
+            }
+
+            $slot = $now->setTime(
+                (int) $runTime->format('H'),
+                (int) $runTime->format('i'),
+                0
+            );
+
+            $slots[] = $slot;
+        }
+
+        // Sort ascending
+        usort($slots, fn($a, $b) => $a <=> $b);
+
+        return $slots;
+    }
+
+    /**
+     * Get schedule
+     * @return array<int,\DateTimeImmutable>
+     */
+    private function getSchedule(
+        array $schedule,
+        \DateTimeImmutable $now,
+        \DateTimeZone|null $timezone = null): array
+    {
+        // Map weekday strings to ISO weekday numbers (1..7)
+        $map = [
+            'mon' => 1, 'monday' => 1,
+            'tue' => 2, 'tues' => 2, 'tuesday' => 2,
+            'wed' => 3, 'wednesday' => 3,
+            'thu' => 4, 'thur' => 4, 'thurs' => 4, 'thursday' => 4,
+            'fri' => 5, 'friday' => 5,
+            'sat' => 6, 'saturday' => 6,
+            'sun' => 7, 'sunday' => 7,
+        ];
+
+        // Start of "this week" in local time (Monday 00:00, ISO week)
+        $weekStart = $now->modify('monday this week')->setTime(0, 0, 0);
+
+        $slots = [];
+
+        $seen = [];
+
+        foreach ($schedule as $dayKey => $time) {
+
+            $key = mb_strtolower(trim((string)$dayKey), 'UTF-8');
+
+            if (isset($seen[$key])) {
+                throw new \InvalidArgumentException("weeklyAt(): duplicate weekday '{$dayKey}' after normalization");
+            }
+
+            $seen[$key] = true;
+
+            // Validate time
+            if (!is_string($time) || trim($time) === '') {
+                throw new \InvalidArgumentException("weeklyAt(): invalid time for '{$dayKey}'");
+            }
+
+            // Normalize weekday key -> ISO int 1..7
+            if (is_numeric($key)) {
+                if (!preg_match('/^\d+$/', $key)) {
+                    throw new \InvalidArgumentException("weeklyAt(): weekday must be an integer 1..7, got '{$dayKey}'");
+                }
+
+                $dow = (int) $key;
+
+                if ($dow < 1 || $dow > 7) {
+                    throw new \InvalidArgumentException("weeklyAt(): weekday int must be 1..7, got {$dow}");
+                }
+            } else {
+                if (!isset($map[$key])) {
+                    throw new \InvalidArgumentException(
+                        "weeklyAt(): invalid weekday '{$dayKey}'"
+                    );
+                }
+
+                $dow = $map[$key];
+            }
+
+            // Parse time string (supports "8pm", "10:15", etc.)
+            try {
+                $t = new \DateTimeImmutable($time, $timezone);
+            } catch (\Exception $e) {
+                throw new \InvalidArgumentException("weeklyAt(): invalid time string '{$time}' for '{$dayKey}'", 0, $e);
+            }
+
+            // Slot for this week: weekStart + (dow-1) days at HH:MM
+            $slot = $weekStart
+                ->modify('+' . ($dow - 1) . ' days')
+                ->setTime(
+                    (int)$t->format('H'),
+                    (int)$t->format('i'),
+                    0
+                );
+
+            $slots[] = $slot;
+        }
+
+        // Sort slots ascending
+        usort($slots, fn(\DateTimeImmutable $a, \DateTimeImmutable $b) => $a <=> $b);
+
+        return $slots;
+    }
 
     /**
      * Removes all cache files created by this plugin
@@ -307,7 +421,7 @@ final class PartialCache
         if ($this->cacheItem === null || $this->needsUpdate) {
             $snippetData = [];
 
-            if ($data != null) {
+            if ($data !== null) {
                 $snippetData = $this->serialize($data);
             }
 
@@ -444,11 +558,6 @@ final class PartialCache
         }
     }
 
-    private function checkTimestamps()
-    {
-
-    }
-
     private function getType($type, $option)
     {
         $map = [
@@ -470,16 +579,16 @@ final class PartialCache
             'site.modified' => function () {
                 return $this->checkSiteModified();
             },
-            'timestamps' => function () {
-                return $this->checkTimestamps();
-            }
         ];
+
+        if (!isset($map[$type])) {
+            return null;
+        }
 
         return $map[$type]($option);
     }
 
     private $checkingOrder = [
-        'timestamps',
         'pages',
         'site.update',
         'site.modified',
@@ -493,12 +602,13 @@ final class PartialCache
      *
      * @param array $watchOptions   Array with options.
      */
-    public function watch(array $watchOptions = [])
+    public function watch(array $watchOptions = []): self
     {
         $this->index = kirby()->cache('sr.partial-cache')->get('index');
 
         if ($this->index === null) {
             Index::createIndex();
+            return $this;
         }
 
         if (! empty($watchOptions) && is_array($watchOptions)) {
