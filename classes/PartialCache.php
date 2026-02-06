@@ -7,6 +7,7 @@ namespace Sr;
 use Kirby\Filesystem\F;
 use Kirby\Template\Snippet;
 use Kirby\Template\Template;
+
 use Exception;
 
 use Sr\Index;
@@ -567,6 +568,116 @@ final class PartialCache
         }
     }
 
+
+    /**
+     * @param array $entries
+     */
+    public function checkExpiresAt(array $entries): void
+    {
+        $entries = $this->normalizeArray($entries);
+
+        foreach ($entries as $key => $callback) {
+            if ($callback === null) {
+                continue;
+            }
+
+            $expiresAt = $this->index['expiresAt'][$key] ?? null;
+
+            // If missing OR cache already invalidated by other rules:
+            // recompute so the stored expiry matches the next cached output.
+            if ($expiresAt === null || $this->needsUpdate) {
+                $expiresAt = $this->updateCustomTimestamp($key, $callback);
+                continue;
+            }
+
+            if (time() > $expiresAt) {
+                $this->needsUpdate = true;
+                $expiresAt = $this->updateCustomTimestamp($key, $callback);
+                continue;
+            }
+        }
+    }
+
+    private function updateCustomTimestamp(string $key, callable $callback) {
+        $expiresAt = $this->evaluateExpiryTimestamp($key, $callback);
+        $this->assertTimestamp($key, $expiresAt);
+
+        $this->index['expiresAt'][$key] = $expiresAt;
+        kirby()->cache('sr.partial-cache')->set('index', $this->index);
+
+        return $expiresAt;
+    }
+
+    private function evaluateExpiryTimestamp(string $key, callable $callback): int
+    {
+        $value = $callback();
+
+        // DateTime / DateTimeImmutable
+        if ($value instanceof \DateTimeInterface) {
+            return $value->getTimestamp();
+        }
+
+        // Strict int
+        if (is_int($value)) {
+            return $value;
+        }
+
+        // Optional: allow numeric string
+        if (is_string($value) && preg_match('/^\d+$/', $value)) {
+            return (int)$value;
+        }
+
+        throw new \InvalidArgumentException(
+            "expiresAt: callback for '{$key}' must return int unix timestamp or DateTimeInterface; got "
+            . gettype($value) . " (" . var_export($value, true) . ")"
+        );
+    }
+
+    private function assertTimestamp(string $key, int $ts): void
+    {
+        // reject negative / absurdly small/large values
+        if ($ts <= 0) {
+            throw new \InvalidArgumentException("expiresAt: invalid timestamp for '{$key}': {$ts}");
+        }
+    }
+
+    private function normalizeArray(array $array): array
+    {
+        $rules = [];
+
+        foreach ($array as $key => $value) {
+
+            // 'key'
+            if (is_int($key)) {
+                if (!is_string($value)) {
+                    throw new \InvalidArgumentException(
+                        "expiresAt: numeric entries must be strings"
+                    );
+                }
+
+                $rules[$value] = null;
+                continue;
+            }
+
+            // 'key' => fn() => ...
+            if (is_string($key)) {
+                if ($value !== null && !is_callable($value)) {
+                    throw new \InvalidArgumentException(
+                        "expiresAt: value for '{$key}' must be a callable or null"
+                    );
+                }
+
+                $rules[$key] = $value;
+                continue;
+            }
+
+            throw new \InvalidArgumentException("expiresAt: invalid entry");
+        }
+
+        return $rules;
+    }
+
+
     private function getType($type, $option)
     {
         $map = [
@@ -588,6 +699,9 @@ final class PartialCache
             'site.modified' => function () {
                 return $this->checkSiteModified();
             },
+            'expiresAt' => function ($option) {
+                return $this->checkExpiresAt($option);
+            },
         ];
 
         if (!isset($map[$type])) {
@@ -604,6 +718,7 @@ final class PartialCache
         'collections',
         'templates',
         'snippets',
+        'expiresAt',
     ];
 
     /**
