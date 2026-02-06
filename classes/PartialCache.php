@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Sr;
 
+use DateTime;
 use Kirby\Filesystem\F;
 use Kirby\Template\Snippet;
 use Kirby\Template\Template;
@@ -583,17 +584,22 @@ final class PartialCache
 
             $expiresAt = $this->index['expiresAt'][$key] ?? null;
 
-            // If missing OR cache already invalidated by other rules:
-            // recompute so the stored expiry matches the next cached output.
-            if ($expiresAt === null || $this->needsUpdate) {
+            // Missing expiry -> compute once
+            if ($expiresAt === null) {
                 $expiresAt = $this->updateCustomTimestamp($key, $callback);
+            }
+
+            // If already invalidated by other rules, recompute so the stored expiry
+            // matches what the next cached output is based on.
+            if ($this->needsUpdate) {
+                $this->updateCustomTimestamp($key, $callback);
                 continue;
             }
 
-            if (time() > $expiresAt) {
+            // Expired -> invalidate and compute the next expiry
+            if (time() > (int)$expiresAt) {
                 $this->needsUpdate = true;
-                $expiresAt = $this->updateCustomTimestamp($key, $callback);
-                continue;
+                $this->updateCustomTimestamp($key, $callback);
             }
         }
     }
