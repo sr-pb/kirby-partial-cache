@@ -111,7 +111,13 @@ All invalidation rules are combined with **OR** logic – if any rule requires i
 $data = partialCache('a-unique-cache-key')
 
     // Writes an item to the cache for a given number of minutes
-    ->expires(1)
+    ->expiresMinutes(1)
+
+    // Writes an item to the cache for a given number of hours
+    ->expiresHours(2)
+
+    // Writes an item to the cache for a given number of days
+    ->expiresDays(3)
 
     // Invalidate daily at specific times (DateTime-compatible strings)
     ->dailyAt('12:00') // or ['1pm', '20:00']
@@ -128,9 +134,6 @@ $data = partialCache('a-unique-cache-key')
 
         // If anything has been edited (cached version of $site->modified())
         'site.modified' => true,
-
-        // If the site has been updated (site.*:after hooks)
-        'site.update' => true,
 
         // Watch pages
         'pages' => [
@@ -174,7 +177,7 @@ echo $data;
 // https://getkirby.com/docs/reference/objects/cache/cache/set
 
 $expires = partialCache('cache-for-five-minutes')
-    ->expires(5)
+    ->expiresMinutes(5)
     ->snippet('some/snippet');
 
 echo $expires;

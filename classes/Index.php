@@ -6,9 +6,17 @@ namespace Sr;
 
 final class Index
 {
-    public static function indexPage($page): void
+    public static function indexPage(\Kirby\Cms\Page $page): void
     {
         $index = kirby()->cache('sr.partial-cache')->get('index', []);
+
+        $index = self::pageData($index, $page);
+
+        kirby()->cache('sr.partial-cache')->set('index', $index);
+    }
+
+    private static function pageData(array $index, \Kirby\Cms\Page $page): array
+    {
         $modified = $page->modified();
         $blueprint = $page->intendedTemplate()->name();
 
@@ -23,26 +31,10 @@ final class Index
             $index['pages']['blueprint'][$blueprint] = $modified;
         }
 
-        kirby()->cache('sr.partial-cache')->set('index', $index);
+        return $index;
     }
 
-    public static function indexCollection($collection): void
-    {
-        $index = kirby()->cache('sr.partial-cache')->get('index', []);
-        $lastModifiedPage = kirby()->collection($collection)->sortBy('modified', 'desc')->limit(1)->first();
-        $modified = $lastModifiedPage->modified();
-        $collectionIndex = $index['collections'][$collection] ?? null;
-
-        if (! $collectionIndex) {
-            $index['collections'][$collection] = $modified;
-        } elseif ($modified > $collectionIndex) {
-            $index['collections'][$collection] = $modified;
-        }
-
-        kirby()->cache('sr.partial-cache')->set('index', $index);
-    }
-
-    public static function updatePage($page): void
+    public static function updatePage(\Kirby\Cms\Page $page): void
     {
         $timestamp = time();
 
@@ -51,38 +43,24 @@ final class Index
         $index['pages']['blueprint'][$page->intendedTemplate()->name()] = $timestamp;
         $index['pages']['id'][$page->uuid()->id()] = $timestamp;
         $index['pages']['id'][$page->id()] = $timestamp;
-        $index['pages']['all'] = $timestamp;
         $index['site.modified'] = $timestamp;
-
-        $collections = option('sr.partial-cache.collections');
-
-        if ($collections !== false) {
-            // convert to array if $collection is string
-            $collections = is_string($collections) ? [$collections] : $collections;
-
-            $index = self::updateCollections($index, $collections, $page, $timestamp);
-        }
 
         kirby()->cache('sr.partial-cache')->set('index', $index);
     }
 
-    private static function updateCollections($index, $collections, $page, $timestamp)
+    public static function deletePage(\Kirby\Cms\Page $page): void
     {
-        foreach ($collections as $collection) {
-            if (kirby()->collection($collection)->has($page)) {
-                $index['collections'][$collection] = $timestamp;
-            }
-        }
-
-        return $index;
+        // Behaves like updatePage: sets a fresh timestamp so that
+        // ID watchers invalidate. Stale IDs are removed on the
+        // next createIndex() rebuild.
+        self::updatePage($page);
     }
 
-    public static function siteUpdate(): void
+    public static function updateSite(): void
     {
+        $index = kirby()->cache('sr.partial-cache')->get('index', []);
         $timestamp = time();
 
-        $index = kirby()->cache('sr.partial-cache')->get('index', []);
-        $index['site.update'] = $timestamp;
         $index['site.modified'] = $timestamp;
 
         kirby()->cache('sr.partial-cache')->set('index', $index);
@@ -93,32 +71,17 @@ final class Index
      */
     public static function createIndex(): void
     {
+        $index = [];
         $allPages = site()->index();
 
         foreach ($allPages as $page) {
-            self::indexPage($page);
+            $index = self::pageData($index, $page);
         }
 
-        self::siteUpdate();
+        $modified = site()->modified();
 
-        $collections = option('sr.partial-cache.collections');
+        $index['site.modified'] = $modified;
 
-        if (
-            isset($collections)
-            && $collections !== false
-        ) {
-            if (is_array($collections)) {
-                foreach ($collections as $collection) {
-                    self::indexCollection($collection);
-                }
-            }
-
-            if (is_string($collections)) {
-                self::indexCollection($collections);
-            }
-        }
-
-        $index = kirby()->cache('sr.partial-cache')->get('index', []);
-        $index['site.modified'] = site()->modified();
+        kirby()->cache('sr.partial-cache')->set('index', $index);
     }
 }

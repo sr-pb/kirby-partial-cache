@@ -22,8 +22,8 @@ if (! function_exists('partialCache')) {
 Kirby::plugin('sr/partial-cache', [
     'options' => [
         'cache' => true,
-        'cache.files' => true,
-        'collections' => false,
+        'cache.data' => true,
+        'enabled' => true,
     ],
     'fields' => [
         'cachebutton' => [
@@ -41,10 +41,7 @@ Kirby::plugin('sr/partial-cache', [
         ],
         'indexbutton' => [
             'props' => [
-                'label' => function ($label) {
-                    if ($label === 'IndexButton') {
-                        return 'Build site index';
-                    }
+                'label' => function ($label = 'Build site index') {
                     return $label;
                 },
                 'text' => function ($text = null) {
@@ -91,8 +88,7 @@ Kirby::plugin('sr/partial-cache', [
             Index::updatePage($page);
         },
         'page.delete:after' => function (Page $page): void {
-            // todo: page delete => aus index entfernen
-            Index::updatePage($page);
+            Index::deletePage($page);
         },
         'page.duplicate:after' => function (Page $duplicatePage): void {
             Index::updatePage($duplicatePage);
@@ -119,10 +115,10 @@ Kirby::plugin('sr/partial-cache', [
          * Site hooks
          */
         'site.update:after' => function (Site $newSite): void {
-            Index::siteUpdate($newSite);
+            Index::updateSite();
         },
         'site.changeTitle:after' => function (Site $newSite): void {
-            Index::siteUpdate($newSite);
+            Index::updateSite();
         },
         /**
          * File hooks
