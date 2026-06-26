@@ -20,9 +20,9 @@ final class PartialCache
     private \Kirby\Cache\Cache $cache;
 
     /**
-     * @var string
+     * Cache key
      */
-    private $key;
+    private string $key;
 
     /**
      * Cache item
@@ -32,16 +32,12 @@ final class PartialCache
     /**
      * Sets expiry date
      * https://getkirby.com/docs/reference/objects/cache/cache/set
-     *
-     * @var int
      */
     private int $expires = 0;
 
 
     /**
      * If cache needs update
-     *
-     * @var bool
      */
     private bool $needsUpdate = false;
 
@@ -49,7 +45,6 @@ final class PartialCache
      * Timestamp of cache item
      */
     private int $lastModified = 0;
-
 
     /**
      * Index with timestamps
@@ -92,7 +87,7 @@ final class PartialCache
      * if value is a callback
      * https://github.com/bnomei/kirby3-lapse/blob/master/classes/Lapse.php
      */
-    private static function isCallable($value): bool
+    private static function isCallable(mixed $value): bool
     {
         // do not call global helpers just methods or closures
         return ! is_string($value) && is_callable($value);
@@ -104,11 +99,9 @@ final class PartialCache
      * Resolve content fields
      * https://github.com/bnomei/kirby3-lapse/blob/master/classes/Lapse.php
      *
-     * @param $value
-     *
      * @return mixed
      */
-    private function serialize($value)
+    private function serialize(mixed $value)
     {
         if ($value === null) {
             return null;
@@ -488,7 +481,7 @@ final class PartialCache
     /**
      * Snippet method
      */
-    public function snippet($snippet, $data = null)
+    public function snippet(string $snippet, $data = null)
     {
         if ($this->cacheItem === null || $this->needsUpdate) {
             $snippetData = [];
@@ -514,13 +507,9 @@ final class PartialCache
      * - page uuid
      * - page blueprint
      */
-    private function checkPages($option): void
+    private function checkPages(array $option): void
     {
         if ($this->needsUpdate) {
-            return;
-        }
-
-        if (!is_array($option)) {
             return;
         }
 
@@ -536,29 +525,6 @@ final class PartialCache
             }
         }
     }
-
-    /**
-     * Check collections timestamps
-     */
-    private function checkCollections($option): void
-    {
-        if (!is_array($option)) {
-            return;
-        }
-
-        foreach ($option as $collection) {
-            $index = $this->index['collections'][$collection] ?? null;
-
-            if (
-                ! $this->needsUpdate
-                && $index
-                && $this->lastModified < $index
-            ) {
-                $this->needsUpdate = true;
-            }
-        }
-    }
-
 
     /**
      * Check site modified timestamp
@@ -616,158 +582,35 @@ final class PartialCache
         }
     }
 
-
-    /**
-     * @param array $entries
-     */
-    public function checkExpiresAt(array $entries): void
-    {
-        $entries = $this->normalizeArray($entries);
-
-        foreach ($entries as $key => $callback) {
-            if ($callback === null) {
-                continue;
-            }
-
-            $expiresAt = $this->index['expiresAt'][$key] ?? null;
-
-            // Missing expiry -> compute once
-            if ($expiresAt === null) {
-                $expiresAt = $this->updateCustomTimestamp($key, $callback);
-            }
-
-            // If already invalidated by other rules, recompute so the stored expiry
-            // matches what the next cached output is based on.
-            if ($this->needsUpdate) {
-                $this->updateCustomTimestamp($key, $callback);
-                continue;
-            }
-
-            // Expired -> invalidate and compute the next expiry
-            if (time() > (int)$expiresAt) {
-                $this->needsUpdate = true;
-                $this->updateCustomTimestamp($key, $callback);
-            }
-        }
-    }
-
-    private function updateCustomTimestamp(string $key, callable $callback) {
-        $expiresAt = $this->evaluateExpiryTimestamp($key, $callback);
-        $this->assertTimestamp($key, $expiresAt);
-
-        $this->index['expiresAt'][$key] = $expiresAt;
-        kirby()->cache('sr.partial-cache')->set('index', $this->index);
-
-        return $expiresAt;
-    }
-
-    private function evaluateExpiryTimestamp(string $key, callable $callback): int
-    {
-        $value = $callback();
-
-        // DateTime / DateTimeImmutable
-        if ($value instanceof \DateTimeInterface) {
-            return $value->getTimestamp();
-        }
-
-        // Strict int
-        if (is_int($value)) {
-            return $value;
-        }
-
-        // Optional: allow numeric string
-        if (is_string($value) && preg_match('/^\d+$/', $value)) {
-            return (int)$value;
-        }
-
-        throw new \InvalidArgumentException(
-            "expiresAt: callback for '{$key}' must return int unix timestamp or DateTimeInterface; got "
-            . gettype($value) . " (" . var_export($value, true) . ")"
-        );
-    }
-
-    private function assertTimestamp(string $key, int $ts): void
-    {
-        // reject negative / absurdly small/large values
-        if ($ts <= 0) {
-            throw new \InvalidArgumentException("expiresAt: invalid timestamp for '{$key}': {$ts}");
-        }
-    }
-
-    private function normalizeArray(array $array): array
-    {
-        $rules = [];
-
-        foreach ($array as $key => $value) {
-
-            // 'key'
-            if (is_int($key)) {
-                if (!is_string($value)) {
-                    throw new \InvalidArgumentException(
-                        "expiresAt: numeric entries must be strings"
-                    );
-                }
-
-                $rules[$value] = null;
-                continue;
-            }
-
-            // 'key' => fn() => ...
-            if (is_string($key)) {
-                if ($value !== null && !is_callable($value)) {
-                    throw new \InvalidArgumentException(
-                        "expiresAt: value for '{$key}' must be a callable or null"
-                    );
-                }
-
-                $rules[$key] = $value;
-                continue;
-            }
-
-            throw new \InvalidArgumentException("expiresAt: invalid entry");
-        }
-
-        return $rules;
-    }
-
-
-    private function getType($type, $option)
+    private function getType(string $type, mixed $option): void
     {
         $map = [
-            'pages' => function ($option) {
-                return $this->checkPages($option);
+            'pages' => function (mixed $option): void {
+                $this->checkPages($option);
             },
-            'collections' => function ($option) {
-                return $this->checkCollections($option);
+            'templates' => function (mixed $option): void {
+                $this->checkTemplates($option);
             },
-            'templates' => function ($option) {
-                return $this->checkTemplates($option);
+            'snippets' => function (mixed $option): void {
+                $this->checkSnippets($option);
             },
-            'snippets' => function ($option) {
-                return $this->checkSnippets($option);
-            },
-            'site.modified' => function () {
-                return $this->checkSiteModified();
-            },
-            'expiresAt' => function ($option) {
-                return $this->checkExpiresAt($option);
+            'site.modified' => function (): void {
+                $this->checkSiteModified();
             },
         ];
 
         if (!isset($map[$type])) {
-            return null;
+            return;
         }
 
-        return $map[$type]($option);
+        $map[$type]($option);
     }
 
-    private $checkingOrder = [
+    private array $checkingOrder = [
         'pages',
         'site.modified',
-        'collections',
         'templates',
         'snippets',
-        'expiresAt',
     ];
 
     /**
