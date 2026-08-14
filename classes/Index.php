@@ -61,6 +61,7 @@ final class Index
         $index = kirby()->cache('sr.partial-cache')->get('index', []);
         $timestamp = time();
 
+        $index['site.update'] = $timestamp;
         $index['site.modified'] = $timestamp;
 
         kirby()->cache('sr.partial-cache')->set('index', $index);
@@ -80,6 +81,7 @@ final class Index
 
         $modified = site()->modified();
 
+        $index['site.update'] = $modified;
         $index['site.modified'] = $modified;
 
         kirby()->cache('sr.partial-cache')->set('index', $index);

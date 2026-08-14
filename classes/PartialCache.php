@@ -540,6 +540,19 @@ final class PartialCache
     }
 
     /**
+     * Check site.*:after timestamps
+     */
+    private function checkSiteUpdate(): void
+    {
+        if (
+            isset($this->index['site.update'])
+            && $this->lastModified < $this->index['site.update']
+        ) {
+            $this->needsUpdate = true;
+        }
+    }
+
+    /**
      * Check file timestamps
      * - snippets
      */
@@ -594,6 +607,9 @@ final class PartialCache
             'snippets' => function (mixed $option): void {
                 $this->checkSnippets($option);
             },
+            'site.update' => function (): void {
+                $this->checkSiteUpdate();
+            },
             'site.modified' => function (): void {
                 $this->checkSiteModified();
             },
@@ -608,6 +624,7 @@ final class PartialCache
 
     private array $checkingOrder = [
         'pages',
+        'site.update',
         'site.modified',
         'templates',
         'snippets',

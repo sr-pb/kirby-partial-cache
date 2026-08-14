@@ -135,6 +135,9 @@ $data = partialCache('a-unique-cache-key')
         // If anything has been edited (cached version of $site->modified())
         'site.modified' => true,
 
+        // If the site has been updated (site.*:after hooks)
+        'site.update' => true,
+
         // Watch pages
         'pages' => [
 
